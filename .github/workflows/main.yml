@@ -1,0 +1,134 @@
+name: Build Native Libs
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Builds lua-utf8 and rex_onig (oniguruma binding) for:
+#   - macOS arm64  (Apple Silicon)
+#   - macOS x64    (Intel Mac)
+#   - Windows x64  (also covers Snapdragon via x64 emulation)
+# All compiled against LuaJIT 2.1 (Lua 5.1 ABI) to match Love2D's bundled runtime.
+
+jobs:
+
+  # ── macOS arm64 (Apple Silicon) ──────────────────────────────
+  mac-arm64:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: brew install luajit luarocks oniguruma
+
+      - name: Build libs
+        run: |
+          LUAJIT="$(brew --prefix luajit)"
+          ONIG="$(brew --prefix oniguruma)"
+          luarocks --lua-dir="$LUAJIT" install luautf8
+          luarocks --lua-dir="$LUAJIT" install lrexlib-oniguruma \
+            ONIGURUMA_INCDIR="$ONIG/include" \
+            ONIGURUMA_LIBDIR="$ONIG/lib"
+
+      - name: Fix oniguruma dylib path + re-sign
+        run: |
+          ONIG="$(brew --prefix oniguruma)"
+          # find the versioned dylib name (e.g. libonig.5.dylib)
+          ONIG_DYLIB="$(ls "$ONIG/lib"/libonig.*.dylib | head -1)"
+          ONIG_NAME="$(basename "$ONIG_DYLIB")"
+          REX="$(find ~/.luarocks -name "rex_onig.so" | head -1)"
+          # rewrite embedded load path so it looks next to the .so at runtime
+          install_name_tool -change "$ONIG_DYLIB" "@loader_path/$ONIG_NAME" "$REX"
+          # required on Apple Silicon after install_name_tool
+          codesign --force --sign - "$REX"
+          cp "$ONIG_DYLIB" .
+
+      - name: Collect artifacts
+        run: |
+          mkdir -p dist/mac_arm64
+          find ~/.luarocks -name "lua-utf8.so" -exec cp {} dist/mac_arm64/ \;
+          find ~/.luarocks -name "rex_onig.so"  -exec cp {} dist/mac_arm64/ \;
+          cp libonig.*.dylib dist/mac_arm64/ 2>/dev/null || true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac-arm64
+          path: dist/mac_arm64/
+
+  # ── macOS x64 (Intel Mac) ────────────────────────────────────
+  mac-x64:
+    runs-on: macos-13
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: brew install luajit luarocks oniguruma
+
+      - name: Build libs
+        run: |
+          LUAJIT="$(brew --prefix luajit)"
+          ONIG="$(brew --prefix oniguruma)"
+          luarocks --lua-dir="$LUAJIT" install luautf8
+          luarocks --lua-dir="$LUAJIT" install lrexlib-oniguruma \
+            ONIGURUMA_INCDIR="$ONIG/include" \
+            ONIGURUMA_LIBDIR="$ONIG/lib"
+
+      - name: Fix oniguruma dylib path
+        run: |
+          ONIG="$(brew --prefix oniguruma)"
+          ONIG_DYLIB="$(ls "$ONIG/lib"/libonig.*.dylib | head -1)"
+          ONIG_NAME="$(basename "$ONIG_DYLIB")"
+          REX="$(find ~/.luarocks -name "rex_onig.so" | head -1)"
+          install_name_tool -change "$ONIG_DYLIB" "@loader_path/$ONIG_NAME" "$REX"
+          cp "$ONIG_DYLIB" .
+
+      - name: Collect artifacts
+        run: |
+          mkdir -p dist/mac_x64
+          find ~/.luarocks -name "lua-utf8.so" -exec cp {} dist/mac_x64/ \;
+          find ~/.luarocks -name "rex_onig.so"  -exec cp {} dist/mac_x64/ \;
+          cp libonig.*.dylib dist/mac_x64/ 2>/dev/null || true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac-x64
+          path: dist/mac_x64/
+
+  # ── Windows x64 ──────────────────────────────────────────────
+  win-x64:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            mingw-w64-x86_64-luajit
+            mingw-w64-x86_64-oniguruma
+            mingw-w64-x86_64-luarocks
+
+      - name: Build libs
+        run: |
+          luarocks --lua-dir=/mingw64 --lua-version=5.1 install luautf8
+          luarocks --lua-dir=/mingw64 --lua-version=5.1 install lrexlib-oniguruma \
+            ONIGURUMA_INCDIR=/mingw64/include \
+            ONIGURUMA_LIBDIR=/mingw64/lib
+
+      - name: Collect artifacts
+        run: |
+          mkdir -p dist/win_x64
+          find /mingw64 ~/.luarocks -name "lua-utf8.dll" 2>/dev/null | head -1 | xargs -I{} cp {} dist/win_x64/
+          find /mingw64 ~/.luarocks -name "rex_onig.dll"  2>/dev/null | head -1 | xargs -I{} cp {} dist/win_x64/
+          # oniguruma may be dynamically linked on Windows — bundle it
+          cp /mingw64/bin/libonig*.dll dist/win_x64/ 2>/dev/null || true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: win-x64
+          path: dist/win_x64/
