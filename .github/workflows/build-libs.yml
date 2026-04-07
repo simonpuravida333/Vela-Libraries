@@ -54,8 +54,11 @@ jobs:
           ln -s "$(realpath ../cppjieba/include/cppjieba)" deps/cppjieba
           ln -s "$(realpath ../limonp/include/limonp)" deps/limonp
           make libjieba.a
-          make LUAJIT_INC="$(brew --prefix luajit)/include/luajit-2.1" luajit
-          mv jieba.luajit.so jieba.so
+          LUAJIT_INC="$(brew --prefix luajit)/include/luajit-2.1"
+          gcc -bundle -undefined dynamic_lookup -fPIC \
+            lua/jieba.c lua/luajieba.c \
+            -I"$LUAJIT_INC" -I./ -L. -ljieba -lm -lstdc++ \
+            -o jieba.so
 
       - name: Fix dylib load paths + re-sign
         run: |
