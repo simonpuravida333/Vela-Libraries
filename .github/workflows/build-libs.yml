@@ -35,7 +35,14 @@ jobs:
             ONIGURUMA_LIBDIR="$ONIG/lib"
           luarocks --lua-dir="$LUAJIT" install luafilesystem
           luarocks --lua-dir="$LUAJIT" install lpeg
-          luarocks --lua-dir="$LUAJIT" install lua-mecab
+
+      - name: Build lua-mecab
+        run: |
+          git clone --depth=1 https://github.com/polm/lua-mecab.git
+          cd lua-mecab
+          luarocks --lua-dir="$(brew --prefix luajit)" make \
+            MECAB_INCDIR="$(brew --prefix mecab)/include" \
+            MECAB_LIBDIR="$(brew --prefix mecab)/lib"
 
       - name: Build luajieba
         run: |
