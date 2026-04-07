@@ -7,10 +7,12 @@ on:
 
 # Builds native libs for:
 #   - macOS arm64  (Apple Silicon — also runs on Intel via Rosetta 2)
+#   - Windows x64  (also covers Snapdragon via x64 emulation)
 # macOS x64 runner retired by GitHub.
 # All compiled against LuaJIT 2.1 (Lua 5.1 ABI) to match Love2D's bundled runtime.
 #
 # macOS arm64 libs:  lua-utf8, rex_onig, lfs, lpeg, mecab, jieba, libthai (dylib)
+# Windows x64 libs:  lua-utf8, rex_onig
 
 jobs:
 
@@ -51,6 +53,7 @@ jobs:
           mkdir deps
           ln -s "$(realpath ../cppjieba/include/cppjieba)" deps/cppjieba
           ln -s "$(realpath ../limonp/include/limonp)" deps/limonp
+          make libjieba.a
           make LUAJIT_INC="$(brew --prefix luajit)/include/luajit-2.1" luajit
           mv jieba.luajit.so jieba.so
 
