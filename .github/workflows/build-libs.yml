@@ -48,7 +48,8 @@ jobs:
         run: |
           git clone --depth=1 --recurse-submodules https://github.com/chenghf/luajieba.git
           cd luajieba
-          luarocks --lua-dir="$(brew --prefix luajit)" make
+          SPEC=$(find . -name "*.rockspec" | head -1)
+          luarocks --lua-dir="$(brew --prefix luajit)" make "$SPEC"
 
       - name: Fix dylib load paths + re-sign
         run: |
