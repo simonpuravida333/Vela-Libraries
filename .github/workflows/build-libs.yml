@@ -73,6 +73,7 @@ jobs:
             mingw-w64-x86_64-luajit
             mingw-w64-x86_64-oniguruma
             mingw-w64-x86_64-make
+            unzip
 
       - name: Install LuaRocks
         run: |
