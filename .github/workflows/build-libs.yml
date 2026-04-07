@@ -7,12 +7,10 @@ on:
 
 # Builds native libs for:
 #   - macOS arm64  (Apple Silicon — also runs on Intel via Rosetta 2)
-#   - Windows x64  (also covers Snapdragon via x64 emulation)
 # macOS x64 runner retired by GitHub.
 # All compiled against LuaJIT 2.1 (Lua 5.1 ABI) to match Love2D's bundled runtime.
 #
 # macOS arm64 libs:  lua-utf8, rex_onig, lfs, lpeg, mecab, jieba, libthai (dylib)
-# Windows x64 libs:  lua-utf8, rex_onig
 
 jobs:
 
@@ -46,10 +44,15 @@ jobs:
 
       - name: Build luajieba
         run: |
-          git clone --depth=1 --recurse-submodules https://github.com/chenghf/luajieba.git
+          git clone --depth=1 --branch v5.4.0 https://github.com/yanyiwu/cppjieba.git
+          git clone --depth=1 --branch v1.0.0 https://github.com/yanyiwu/limonp.git
+          git clone --depth=1 https://github.com/chenghf/luajieba.git
           cd luajieba
-          SPEC=$(find . -name "*.rockspec" | head -1)
-          luarocks --lua-dir="$(brew --prefix luajit)" make "$SPEC"
+          mkdir deps
+          ln -s "$(realpath ../cppjieba/include/cppjieba)" deps/cppjieba
+          ln -s "$(realpath ../limonp/include/limonp)" deps/limonp
+          make LUAJIT_INC="$(brew --prefix luajit)/include/luajit-2.1" luajit
+          mv jieba.luajit.so jieba.so
 
       - name: Fix dylib load paths + re-sign
         run: |
@@ -72,8 +75,7 @@ jobs:
           find ~/.luarocks -name "lfs.so"        -exec cp {} dist/mac_arm64/ \;
           find ~/.luarocks -name "lpeg.so"       -exec cp {} dist/mac_arm64/ \;
           find ~/.luarocks -name "mecab.so"      -exec cp {} dist/mac_arm64/ \;
-          find ~/.luarocks -name "jieba.so"  -exec cp {} dist/mac_arm64/ \; 2>/dev/null || true
-          find ~/.luarocks -name "cjieba.so" -exec cp {} dist/mac_arm64/ \; 2>/dev/null || true
+          cp luajieba/jieba.so dist/mac_arm64/ 2>/dev/null || true
           # Runtime dylibs
           cp "$(ls "$(brew --prefix oniguruma)/lib"/libonig.*.dylib | head -1)" dist/mac_arm64/
           cp "$(ls "$(brew --prefix mecab)/lib"/libmecab*.dylib      | head -1)" dist/mac_arm64/
